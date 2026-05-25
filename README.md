@@ -31,7 +31,7 @@
 ---
 
 ### 🔄 Full Speech Pipeline
-> The complete end-to-end pipeline: dialect is detected, speech is transcribed word-by-word via Whisper, translated to another dialect via Gemini, and spoken back via ElevenLabs TTS — with words highlighting in sync with audio playback.
+> The complete end-to-end pipeline: dialect is detected, speech is transcribed word-by-word via ElevenLabs STT, translated to another dialect via Gemini, and spoken back via ElevenLabs TTS — with words highlighting in sync with audio playback.
 
 <img width="1165" height="598" alt="Full pipeline view showing transcription, translation, and TTS playback with synchronized word highlighting" src="https://github.com/user-attachments/assets/af2d1f70-ac20-4c55-9519-d51fab5b716a" />
 
@@ -150,7 +150,7 @@ curl -X POST http://localhost:5000/detect \
 Voice Input
     ↓  /detect  →  SVM (318 DSP features)
 Dialect Detected
-    ↓  Whisper base  →  word-level timestamps
+    ↓  ElevenLabs STT  →  word-level timestamps
 Arabic Transcription  (words highlight as audio plays)
     ↓  Gemini 2.5 Flash
 Dialect-to-Dialect Translation
@@ -205,7 +205,7 @@ Visit [http://localhost:5000](http://localhost:5000) in your browser.
 | **ElevenLabs** | 10,000 chars/month | [elevenlabs.io](https://elevenlabs.io/app/settings/api-keys) |
 | **Google Gemini** | Free with rate limits | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
 
-> **Note:** Whisper runs locally — no API key needed.
+> **Note:** Both STT and TTS are handled by ElevenLabs using the same API key.
 
 ---
 
@@ -267,7 +267,7 @@ Key findings:
 |---|---|
 | ML Model | scikit-learn SVM, librosa, scipy |
 | Backend | Python 3.10+, Flask, Flask-CORS |
-| Transcription | OpenAI Whisper (local, `base` model) |
+| Transcription | ElevenLabs STT |
 | Translation | Google Gemini 2.5 Flash |
 | TTS | ElevenLabs `eleven_multilingual_v2` |
 | Frontend | Vanilla JS, CSS custom properties, Web Audio API |
