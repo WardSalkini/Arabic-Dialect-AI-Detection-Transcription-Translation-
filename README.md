@@ -1,1 +1,286 @@
-# Arabic-Dialect-AI-Detection-Transcription-Translation-
+<div align="center">
+
+# 🎙️ لهجة · Lahja
+### Arabic Dialect AI — Detection · Transcription · Translation · TTS
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.0-black?logo=flask)](https://flask.palletsprojects.com)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-SVM-orange?logo=scikit-learn)](https://scikit-learn.org)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+*Detects Arabic dialect from voice input, transcribes it, translates it to another dialect, and speaks it back — in real time.*
+
+</div>
+
+---
+
+## 📸 Screenshots
+
+### 🗣️ Dialect Detection
+> Upload or record audio and get an instant prediction of the Arabic dialect, along with confidence scores for all four supported dialects.
+
+<img width="1205" height="807" alt="Dialect Detection screen showing confidence scores for Egyptian, Levantine, Emirati, and Moroccan dialects" src="https://github.com/user-attachments/assets/6645260a-5ae2-4e4d-b8d1-bbb0ba08206a" />
+
+---
+
+### 📊 Feature Visualization
+> Explore the 318 acoustic features extracted from your audio — including MFCC, chroma, spectral contrast, and prosodic features — rendered as interactive charts.
+
+<img width="1161" height="803" alt="Feature visualization panel showing radar and bar charts of extracted audio features" src="https://github.com/user-attachments/assets/17e6c2d9-0622-4418-984d-de2625c4191c" />
+
+---
+
+### 🔄 Full Speech Pipeline
+> The complete end-to-end pipeline: dialect is detected, speech is transcribed word-by-word via Whisper, translated to another dialect via Gemini, and spoken back via ElevenLabs TTS — with words highlighting in sync with audio playback.
+
+<img width="1165" height="598" alt="Full pipeline view showing transcription, translation, and TTS playback with synchronized word highlighting" src="https://github.com/user-attachments/assets/af2d1f70-ac20-4c55-9519-d51fab5b716a" />
+
+---
+
+### 🧪 Dialect Mixer
+> Blend two audio clips at a custom ratio and let the model classify the resulting mix. Useful for testing how the SVM handles ambiguous or mixed-dialect speech.
+
+<img width="525" height="910" alt="Dialect Mixer UI showing two audio inputs and a blend ratio slider" src="https://github.com/user-attachments/assets/943bdec7-1e8a-42bb-a394-92baaf024b0a" />
+
+---
+
+### 📝 Transcript View
+> Read the full timestamped transcript of your audio alongside its dialect-to-dialect translation, with each word linked to its position in the original recording.
+
+<img width="1748" height="981" alt="Transcript view showing original Arabic text with word-level timestamps alongside the translated dialect version" src="https://github.com/user-attachments/assets/94c64a94-b0bc-47ba-aacd-57369861c2d0" />
+
+---
+
+## 🗂️ Project Structure
+
+```
+lahja/
+├── backend/
+│   ├── app.py                    ← Flask API server (4 endpoints)
+│   ├── dialect_model.joblib      ← Trained SVM classifier
+│   ├── label_encoder.joblib      ← Maps class indices → dialect names
+│   ├── feature_scaler.joblib     ← StandardScaler (must be applied before predict)
+│   ├── feature_names.joblib      ← 318 feature names
+│   ├── feature_stats.joblib      ← Per-dialect feature stats for visualization
+│   └── requirements.txt
+├── frontend/
+│   └── index.html                ← Single-page app (vanilla JS + CSS)
+├── task5DS_modified.ipynb        ← Training notebook (Google Colab)
+├── .env.example                  ← API key template — copy to .env
+├── .gitignore
+└── README.md
+```
+
+---
+
+## 🤖 The ML Model
+
+### Dataset
+- **Source:** [`ArabicSpeech/ADI17`](https://huggingface.co/datasets/ArabicSpeech/ADI17) on HuggingFace
+- **Size:** 800 audio clips × 4 dialects = **3,200 total files**
+- **Dialects:** Egyptian (EGY) · Levantine/Syrian (SYR) · Emirati/Gulf (UAE) · Moroccan (MOR)
+
+### Feature Engineering — 318 features total
+
+| Feature Group | Count | What it captures |
+|---|---|---|
+| MFCC (CMVN-normalised) | 120 | Vocal tract shape / vowel identity |
+| Delta MFCC | 40 | Rate of spectral change |
+| Delta² MFCC | 40 | Spectral acceleration |
+| LPC (order 12) | 24 | Formant proxies (F1/F2) |
+| Chroma | 24 | Tonal / pitch-class content |
+| Spectral Contrast | 14 | Tonal vs noise energy per band |
+| Spectral Shape | 10 | Centroid, bandwidth, rolloff, flatness, ZCR |
+| Prosodic | 6 | F0 mean/std, voiced fraction, rhythm |
+
+Each feature is summarised with: **mean, std, p25, p75, skew, kurtosis**.
+
+### Model
+- **Algorithm:** SVM with RBF kernel (`C=10, gamma='scale'`)
+- **Why SVM over Random Forest:** MFCC features are correlated — SVM handles correlated high-dimensional features better than tree-based splits
+- **Preprocessing:** CMVN normalisation on MFCCs + `StandardScaler` on full feature vector
+- **Split:** 80/20 stratified train/test
+
+---
+
+## 🔌 API Endpoints
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/` | Serves `index.html` |
+| `GET` | `/health` | Model load status check |
+| `POST` | `/detect` | Upload audio → dialect + confidence + features + spectrogram |
+| `POST` | `/mix` | Upload 2 audio files + weight → classify the mix, return mixed audio |
+| `GET` | `/config` | Returns API keys to frontend (see [Security](#-security)) |
+
+### `/detect` — Request / Response
+
+```bash
+curl -X POST http://localhost:5000/detect \
+  -F "audio=@sample.wav"
+```
+
+```json
+{
+  "dialect": "egyptian",
+  "confidence": 87.3,
+  "probabilities": {
+    "egyptian": 87.3,
+    "levant": 6.1,
+    "emarit": 4.2,
+    "moroccan": 2.4
+  },
+  "features": {
+    "mfcc": [...],
+    "chroma": [...],
+    "centroid": 1527.4,
+    "f0_mean": 231.1,
+    "voiced_frac": 0.654,
+    "rhy_max": 0.821
+  },
+  "spectrogram": "<base64-encoded PNG>"
+}
+```
+
+---
+
+## 🚀 Full Speech Pipeline
+
+```
+Voice Input
+    ↓  /detect  →  SVM (318 DSP features)
+Dialect Detected
+    ↓  Whisper base  →  word-level timestamps
+Arabic Transcription  (words highlight as audio plays)
+    ↓  Gemini 2.5 Flash
+Dialect-to-Dialect Translation
+    ↓  ElevenLabs eleven_multilingual_v2
+TTS Audio in Target Dialect  (translated words reveal as TTS plays)
+```
+
+---
+
+## ⚙️ Setup & Run
+
+### 1 — Clone the repo
+```bash
+git clone https://github.com/YOUR_USERNAME/lahja.git
+cd lahja
+```
+
+### 2 — Create virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+```
+
+### 3 — Install dependencies
+```bash
+pip install -r backend/requirements.txt
+```
+
+### 4 — Set up API keys
+```bash
+cp .env.example .env
+# then open .env and fill in your keys:
+# ELEVENLABS_API_KEY=...
+# GEMINI_API_KEY=...
+```
+
+### 5 — Run the backend
+```bash
+cd backend
+python app.py
+```
+
+### 6 — Open the app
+Visit [http://localhost:5000](http://localhost:5000) in your browser.
+
+---
+
+## 🔑 API Keys You Need
+
+| API | Free Tier | Get it |
+|---|---|---|
+| **ElevenLabs** | 10,000 chars/month | [elevenlabs.io](https://elevenlabs.io/app/settings/api-keys) |
+| **Google Gemini** | Free with rate limits | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+
+> **Note:** Whisper runs locally — no API key needed.
+
+---
+
+## 🔒 Security
+
+API keys are loaded from environment variables, never hardcoded:
+
+```python
+# backend/app.py
+from dotenv import load_dotenv
+load_dotenv()
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY",     "")
+```
+
+The `/config` endpoint exposes keys to the frontend so the browser can call ElevenLabs and Gemini directly. This is acceptable for a local/demo deployment. **For production:**
+- Move all ElevenLabs and Gemini calls to the backend
+- Remove the `/config` endpoint entirely
+- Add rate limiting and authentication
+
+---
+
+## 🏋️ Retrain the Model
+
+Open `task5DS_modified.ipynb` in Google Colab:
+
+1. **Cell 03** — downloads the dataset from HuggingFace (needs Google Drive)
+2. **Cell 09** — set config constants
+3. **Cell 12** — feature extraction functions (do not modify)
+4. **Cell 14** — builds the feature matrix (`X`: 3200×318)
+5. **Cell 18** — 80/20 train/test split
+6. **Cell 20** — StandardScaler + LabelEncoder
+7. **Cell 22** — trains SVM
+8. **Cell 24** — evaluates (accuracy + confusion matrix)
+9. **Cell 28** — saves 5 `.joblib` artifacts
+10. **Cell 30** — downloads artifacts → place in `backend/`
+
+---
+
+## 📊 Model Explainability
+
+The notebook generates:
+- **Violin plots** — feature distributions per dialect (Cell 16)
+- **Feature importance** — Gini importance via Random Forest (Cell 26)
+- **Dialect fingerprint charts** — averaged features per dialect (Cell 06)
+- **Best representative files** — top 4 files per dialect on discriminative features (Cell 07)
+
+Key findings:
+- **Spectral Contrast** is the most discriminative feature group (7 of top 8 features)
+- **Rhythm periodicity** has the highest single-feature F-score (F=211)
+- Egyptian and Levantine cluster as "dark" dialects (low centroid); Moroccan and Emirati as "bright"
+- Voiced fraction separates dialects clearly: Levantine 70.8% vs Egyptian 58.2%
+
+---
+
+## 🗃️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| ML Model | scikit-learn SVM, librosa, scipy |
+| Backend | Python 3.10+, Flask, Flask-CORS |
+| Transcription | OpenAI Whisper (local, `base` model) |
+| Translation | Google Gemini 2.5 Flash |
+| TTS | ElevenLabs `eleven_multilingual_v2` |
+| Frontend | Vanilla JS, CSS custom properties, Web Audio API |
+| Training | Google Colab, HuggingFace Datasets |
+
+---
+
+## 📄 License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+Made with ☕ and librosa
+</div>
